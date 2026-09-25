@@ -3,10 +3,13 @@ import random
 from dataclasses import dataclass
 
 POND_SIZE = 100
-MAX_SPEED = 1.5
+MAX_SPEED = 2.0
 
 TURN_ANGLE_STDDEV = 0.3
 SPEED_CHANGE_STDDEV = 0.24
+
+FOOD_ATTRACTION_DISTANCE = 70
+FOOD_EAT_DISTANCE = 3
 
 
 @dataclass
@@ -15,6 +18,12 @@ class Fish:
     y: float
     vx: float
     vy: float
+
+
+@dataclass
+class Food:
+    x: float
+    y: float
 
 
 def create_fish(count: int) -> list[Fish]:
@@ -37,15 +46,31 @@ def create_fish(count: int) -> list[Fish]:
     return fish_list
 
 
-def step_fish(fish_list: list[Fish]) -> None:
+def step_fish(
+    fish_list: list[Fish],
+    food: Food | None,
+) -> bool:
     for fish in fish_list:
         speed = math.hypot(fish.vx, fish.vy)
         angle = math.atan2(fish.vy, fish.vx)
 
-        angle += random.gauss(mu=0.0, sigma=TURN_ANGLE_STDDEV)
+        if food is not None:
+            dist_x = food.x - fish.x
+            dist_y = food.y - fish.y
+            distance_to_food = math.hypot(dist_x, dist_y)
 
-        speed += random.gauss(mu=0.0, sigma=SPEED_CHANGE_STDDEV)
-        speed = max(0, min(MAX_SPEED, speed))
+            if distance_to_food <= FOOD_ATTRACTION_DISTANCE:
+                angle = math.atan2(dist_y, dist_x)
+                speed = MAX_SPEED
+            else:
+                angle += random.gauss(mu=0.0, sigma=TURN_ANGLE_STDDEV)
+                speed += random.gauss(mu=0.0, sigma=SPEED_CHANGE_STDDEV)
+                speed = max(0, min(MAX_SPEED, speed))
+
+        else:
+            angle += random.gauss(mu=0.0, sigma=TURN_ANGLE_STDDEV)
+            speed += random.gauss(mu=0.0, sigma=SPEED_CHANGE_STDDEV)
+            speed = max(0, min(MAX_SPEED, speed))
 
         fish.vx = math.cos(angle) * speed
         fish.vy = math.sin(angle) * speed
@@ -68,3 +93,11 @@ def step_fish(fish_list: list[Fish]) -> None:
         elif fish.y > POND_SIZE:
             fish.y = POND_SIZE
             fish.vy = -abs(fish.vy)
+
+    if food is None:
+        return False
+
+    return any(
+        math.hypot(fish.x - food.x, fish.y - food.y) <= FOOD_EAT_DISTANCE
+        for fish in fish_list
+    )
