@@ -1,13 +1,16 @@
+import random
+import time
+
 import plotly.graph_objects as go
 import streamlit as st
 
-from simulation import Food, create_fish, step_fish
+from simulation import POND_SIZE, Food, create_fish, step_fish
 
-POND_SIZE = 100
-FISH_COUNT = 5
-TIME_STEP = 0.5
+FISH_COUNT = 30
+UPDATE_INTERVAL = 0.2
 PADDING = 5
-CLICK_GRID_STEP = 2
+MIN_FOOD_INTERVAL = 2.0
+MAX_FOOD_INTERVAL = 6.0
 
 st.set_page_config(page_title="Fish Pond", layout="centered")
 
@@ -20,8 +23,18 @@ if "fish" not in st.session_state:
 if "food" not in st.session_state:
     st.session_state.food = None
 
-if "click_count" not in st.session_state:
-    st.session_state.click_count = 0
+if "next_food_time" not in st.session_state:
+    st.session_state.next_food_time = time.monotonic() + random.uniform(
+        MIN_FOOD_INTERVAL,
+        MAX_FOOD_INTERVAL,
+    )
+
+
+def schedule_next_food():
+    st.session_state.next_food_time = time.monotonic() + random.uniform(
+        MIN_FOOD_INTERVAL,
+        MAX_FOOD_INTERVAL,
+    )
 
 
 def create_pond_figure():
@@ -54,31 +67,6 @@ def create_pond_figure():
             )
         )
 
-    # 最後才加入 click layer
-
-    click_x = []
-    click_y = []
-
-    for x in range(0, POND_SIZE + 1, CLICK_GRID_STEP):
-        for y in range(0, POND_SIZE + 1, CLICK_GRID_STEP):
-            click_x.append(x)
-            click_y.append(y)
-
-    fig.add_trace(
-        go.Scatter(
-            x=click_x,
-            y=click_y,
-            mode="markers",
-            marker={
-                "size": 30,
-                "symbol": "square",
-                "color": "rgba(0,0,0,0.001)",
-            },
-            hoverinfo="none",
-            showlegend=False,
-        )
-    )
-
     fig.update_xaxes(
         range=[-PADDING, 100 + PADDING],
         visible=False,
@@ -102,25 +90,16 @@ def create_pond_figure():
     return fig
 
 
-def place_food():
-    points = st.session_state.pond_chart.selection.points
-
-    if not points:
-        return
-
-    point = points[-1]
-
-    st.session_state.click_count += 1
-
-    st.session_state.food = Food(
-        x=float(point["x"]),
-        y=float(point["y"]),
-    )
-
-
-@st.fragment(run_every=TIME_STEP)
+@st.fragment(run_every=UPDATE_INTERVAL)
 def pond():
-    st.write("click count:", st.session_state.click_count)
+    if (
+        st.session_state.food is None
+        and time.monotonic() >= st.session_state.next_food_time
+    ):
+        st.session_state.food = Food(
+            x=random.uniform(0, POND_SIZE),
+            y=random.uniform(0, POND_SIZE),
+        )
 
     food_eaten = step_fish(
         st.session_state.fish,
@@ -129,12 +108,10 @@ def pond():
 
     if food_eaten:
         st.session_state.food = None
+        schedule_next_food()
 
     st.plotly_chart(
         create_pond_figure(),
-        key="pond_chart",
-        on_select=place_food,
-        selection_mode="points",
         width="stretch",
         config={"displayModeBar": False},
     )

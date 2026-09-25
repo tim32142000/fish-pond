@@ -3,7 +3,7 @@ import random
 from dataclasses import dataclass
 
 POND_SIZE = 100
-MAX_SPEED = 1.5
+MAX_SPEED = 2.0
 
 TURN_ANGLE_STDDEV = 0.3
 SPEED_CHANGE_STDDEV = 0.24
@@ -70,6 +70,7 @@ def step_fish(
         else:
             angle += random.gauss(mu=0.0, sigma=TURN_ANGLE_STDDEV)
             speed += random.gauss(mu=0.0, sigma=SPEED_CHANGE_STDDEV)
+            speed = max(0, min(MAX_SPEED, speed))
 
         fish.vx = math.cos(angle) * speed
         fish.vy = math.sin(angle) * speed
